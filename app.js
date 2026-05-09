@@ -9,12 +9,80 @@ let confirmCallback = null;
 let disabledCells = new Set();
 let altPressed = false;
 let isPairMode = true;
+let isZoneMode = false;
+let zoneCount = 3;
+let seatZones = {}; // "r,c" -> zone
+let currentBrush = 'A';
+let fillSeatsMode = true;
+let numberDirection = 'horizontal';
 
 window.addEventListener('keydown', e => { if (e.key === 'Alt') altPressed = true; });
 window.addEventListener('keyup', e => { if (e.key === 'Alt') altPressed = false; });
 
 document.getElementById('pairModeToggle').addEventListener('change', (e) => {
   isPairMode = e.target.checked;
+  renderGrid();
+});
+
+document.getElementById('zoneModeToggle').addEventListener('change', (e) => {
+  isZoneMode = e.target.checked;
+  document.getElementById('zoneCountSelect').style.display = isZoneMode ? 'block' : 'none';
+  document.getElementById('brushContainer').style.display = isZoneMode ? 'block' : 'none';
+  
+  if (!isZoneMode) {
+    currentBrush = 'disabled';
+    document.querySelectorAll('.brush-btn').forEach(b => b.classList.remove('active'));
+    const disabledBtn = document.querySelector('[data-brush="disabled"]');
+    if (disabledBtn) disabledBtn.classList.add('active');
+  } else {
+    // 구역 ON 시: 현재 zoneCount 기준으로 E/F 브러시 표시 여부 적용
+    const cnt = parseInt(document.getElementById('zoneCountSelect').value);
+    ['A', 'B', 'C', 'D', 'E', 'F'].forEach((z, i) => {
+      const btn = document.getElementById(`brushBtn-${z}`);
+      if (btn) btn.style.display = (i < cnt) ? 'flex' : 'none';
+    });
+    // 기본 브러시 A 활성화
+    currentBrush = 'A';
+    document.querySelectorAll('.brush-btn').forEach(b => b.classList.remove('active'));
+    const aBtn = document.getElementById('brushBtn-A');
+    if (aBtn) aBtn.classList.add('active');
+  }
+  
+  const count = parseInt(document.getElementById('zoneCountSelect').value);
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach((z, i) => {
+      const section = document.getElementById(`poolSection-${z}`);
+      if (section) section.classList.toggle('hidden', !(isZoneMode && i < count));
+  });
+  renderGrid();
+  renderPool();
+});
+
+document.getElementById('zoneCountSelect').addEventListener('change', (e) => {
+  zoneCount = parseInt(e.target.value);
+  ['A', 'B', 'C', 'D', 'E', 'F'].forEach((z, i) => {
+      const brushBtn = document.getElementById(`brushBtn-${z}`);
+      if (brushBtn) brushBtn.style.display = (i < zoneCount) ? 'flex' : 'none';
+      
+      const section = document.getElementById(`poolSection-${z}`);
+      if (section) section.classList.toggle('hidden', !(isZoneMode && i < zoneCount));
+  });
+  renderPool();
+});
+
+document.querySelectorAll('.brush-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.brush-btn').forEach(b => b.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+    currentBrush = e.currentTarget.dataset.brush;
+  });
+});
+
+document.getElementById('fillSeatsToggle').addEventListener('change', (e) => {
+  fillSeatsMode = e.target.checked;
+});
+
+document.getElementById('numberDirectionSelect').addEventListener('change', (e) => {
+  numberDirection = e.target.value;
   renderGrid();
 });
 
@@ -82,7 +150,20 @@ function initGrid() {
   renderGrid();
   placeUnassignedToPool();
 }
-document.getElementById('applyGridBtn').onclick = initGrid;
+
+function tryInitGrid() {
+  const hasAssigned = students.some(s => isAssigned(s.id));
+  if (hasAssigned) {
+    showConfirm('행/열 크기를 변경하면 현재 배치된 자리와 결번 설정이 초기화될 수 있습니다. 계속하시겠습니까?', () => {
+      initGrid();
+    });
+  } else {
+    initGrid();
+  }
+}
+
+document.getElementById('rowsInput').addEventListener('change', tryInitGrid);
+document.getElementById('colsInput').addEventListener('change', tryInitGrid);
 
 function renderGrid() {
   const container = document.getElementById('seatGrid');
@@ -103,7 +184,9 @@ function renderGrid() {
         cell.style.marginLeft = 'clamp(16px, 3vw, 40px)'; 
       }
 
-      const seatNum = (rows - 1 - r) * cols + (cols - 1 - c) + 1;
+      const seatNum = numberDirection === 'horizontal' 
+        ? (rows - 1 - r) * cols + (cols - 1 - c) + 1
+        : (cols - 1 - c) * rows + (rows - 1 - r) + 1;
 
       // 🟢 번호는 기본적으로 생성 (취소선 효과를 위해 결번도 포함)
       if (!grid[r][c]) {
@@ -117,8 +200,19 @@ function renderGrid() {
       if (disabledCells.has(`${r},${c}`)) {
         cell.classList.add('disabled'); // 🌟 CSS 클래스 추가
         cell.title = '결번 (클릭하여 활성화)';
+        
+        const cross = document.createElement('div');
+        cross.textContent = '❌';
+        cross.style.fontSize = '24px';
+        cross.style.opacity = '0.6';
+        cross.style.pointerEvents = 'none';
+        cell.appendChild(cross);
       } else {
-        cell.title = '클릭하여 결번 처리';
+        cell.title = '클릭하여 결번/구역 처리';
+        const zone = seatZones[`${r},${c}`];
+        if (isZoneMode && zone) {
+          cell.classList.add(`zone-${zone}`);
+        }
       }
 
       const sid = grid[r][c];
@@ -142,8 +236,25 @@ function renderGrid() {
         if (cell.classList.contains('has-student')) return;
         
         const key = `${r},${c}`;
-        if (disabledCells.has(key)) disabledCells.delete(key);
-        else disabledCells.add(key);
+        
+        if (currentBrush === 'disabled') {
+          if (disabledCells.has(key)) disabledCells.delete(key);
+          else {
+            disabledCells.add(key);
+            delete seatZones[key];
+          }
+        } else if (currentBrush === 'none') {
+          disabledCells.delete(key);
+          delete seatZones[key];
+        } else { // A, B, C, D, E, F
+          if (seatZones[key] === currentBrush) {
+            delete seatZones[key];
+          } else {
+            disabledCells.delete(key);
+            seatZones[key] = currentBrush;
+          }
+        }
+        
         renderGrid();
       });
 
@@ -154,12 +265,34 @@ function renderGrid() {
   if (window.lucide) lucide.createIcons();
 }
 
-function makeCard(student, inGrid = false, r = null, c = null) {
+function makeCard(student, inGrid = false, r = null, c = null, poolZone = null) {
   const card = document.createElement('div');
   card.className = 'student-card pop-in';
   card.draggable = true;
   card.dataset.id = student.id;
   card.textContent = student.name;
+
+  if (isZoneMode && student.zone && student.zone !== 'none') {
+    card.dataset.zone = student.zone;
+    
+    // 각 구역 폴에 있을 때는 뱃지를 표시하지 않고, 그리드에 있거나 기본 풀(none)에 있을 때만 표시
+    const shouldShowBadge = inGrid || poolZone === 'none';
+    
+    if (shouldShowBadge) {
+      const badge = document.createElement('div');
+      badge.className = `zone-badge ${student.zone}`;
+      badge.textContent = student.zone;
+      card.appendChild(badge);
+    }
+    
+    // 우클릭 시 구역 제거
+    card.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        student.zone = 'none';
+        renderGrid();
+        renderPool();
+    });
+  }
 
   const actionBtn = document.createElement('div');
   
@@ -221,17 +354,48 @@ function makeCard(student, inGrid = false, r = null, c = null) {
 
 // ===== POOL =====
 function renderPool() {
-  const pool = document.getElementById('studentPool');
-  pool.innerHTML = '';
+  const pools = {
+      'none': document.getElementById('studentPool-none'),
+      'A': document.getElementById('studentPool-A'),
+      'B': document.getElementById('studentPool-B'),
+      'C': document.getElementById('studentPool-C'),
+      'D': document.getElementById('studentPool-D'),
+      'E': document.getElementById('studentPool-E'),
+      'F': document.getElementById('studentPool-F')
+  };
+  
+  const counts = { 'none': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0, 'E': 0, 'F': 0 };
+  
+  for (let key in pools) {
+      if (pools[key]) pools[key].innerHTML = '';
+  }
+  
   const unassigned = students.filter(s => !isAssigned(s.id));
   unassigned.forEach(s => {
+    let targetZone = s.zone || 'none';
+    if (!isZoneMode) targetZone = 'none';
+
     const wrap = document.createElement('div');
-    wrap.style.width = '88px'; 
-    wrap.style.height = '56px';
-    wrap.appendChild(makeCard(s, false));
-    pool.appendChild(wrap);
+    wrap.style.width = '69px'; 
+    wrap.style.height = '28px';
+    const card = makeCard(s, false, null, null, targetZone);
+    card.classList.add('pool-card');
+    wrap.appendChild(card);
+    
+    if (pools[targetZone]) {
+        pools[targetZone].appendChild(wrap);
+        counts[targetZone]++;
+    } else {
+        if(pools['none']) pools['none'].appendChild(wrap);
+        counts['none']++;
+    }
   });
+  
   document.getElementById('poolCount').textContent = unassigned.length;
+  for (let key in counts) {
+      const countEl = document.getElementById(`count-${key}`);
+      if (countEl) countEl.textContent = counts[key];
+  }
   updateDropdowns();
 }
 
@@ -270,8 +434,17 @@ function handleDrop(r, c) {
     }
   }
   
+  // 가상 격자를 만들어 제외쌍 체크
+  const tempGrid = grid.map(row => [...row]);
+  tempGrid[r][c] = sid;
+  if (srcR !== -1) tempGrid[srcR][srcC] = targetId;
+
+  if (!checkExclude(tempGrid)) {
+    return showToast('이웃 제외 쌍 조건에 위배되는 배치입니다.', true);
+  }
+
+  // 검증 통과 시 실제 반영
   grid[r][c] = sid;
-  
   if (srcR !== -1) {
     grid[srcR][srcC] = targetId; 
   }
@@ -281,37 +454,80 @@ function handleDrop(r, c) {
   renderPool();
 }
 
-document.getElementById('studentPool').addEventListener('dragover', e => {
-  e.preventDefault();
-  e.currentTarget.classList.add('drag-over-pool');
-});
-document.getElementById('studentPool').addEventListener('dragleave', e => {
-  e.currentTarget.classList.remove('drag-over-pool');
-});
-document.getElementById('studentPool').addEventListener('drop', e => {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over-pool');
-  if (!dragData) return;
-  
-  const sid = dragData.studentId;
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols; c++)
-      if (grid[r][c] === sid) grid[r][c] = null;
+document.querySelectorAll('.pool-section').forEach(pool => {
+    pool.addEventListener('dragover', e => {
+      e.preventDefault();
+      pool.classList.add('drag-over-pool');
+    });
+    pool.addEventListener('dragleave', e => {
+      pool.classList.remove('drag-over-pool');
+    });
+    pool.addEventListener('drop', e => {
+      e.preventDefault();
+      pool.classList.remove('drag-over-pool');
+      if (!dragData) return;
       
-  pinnedSeats = pinnedSeats.filter(p => p.studentId !== sid);
-  renderGrid();
-  renderPool();
+      const sid = dragData.studentId;
+      const targetZone = pool.dataset.zone;
+      
+      const s = students.find(x => x.id === sid);
+      if (s) {
+          if (isZoneMode && targetZone !== 'none') {
+              s.zone = targetZone;
+          } else {
+              s.zone = 'none';
+          }
+      }
+
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++)
+          if (grid[r][c] === sid) grid[r][c] = null;
+          
+      pinnedSeats = pinnedSeats.filter(p => p.studentId !== sid);
+      renderGrid();
+      renderPool();
+    });
+});
+
+document.querySelectorAll('.pool-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+        // 일괄 이동 버튼 클릭 시 아코디언 토글 방지
+        if (e.target.closest('.move-all-to-base')) return;
+        
+        header.classList.toggle('collapsed');
+        const area = header.nextElementSibling;
+        if (area) {
+            area.classList.toggle('collapsed');
+        }
+    });
+});
+
+document.querySelectorAll('.move-all-to-base').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const zone = btn.dataset.zone;
+        const studentsInZone = students.filter(s => s.zone === zone);
+        
+        if (studentsInZone.length === 0) return;
+        
+        studentsInZone.forEach(s => {
+            s.zone = 'none';
+        });
+        
+        renderPool();
+        showToast(`${zone}구역 학생들을 기본 풀로 이동했습니다.`);
+    });
 });
 
 // ===== STUDENT CRUD =====
-function addStudent(name) {
+function addStudent(name, zone = 'none') {
   name = name.trim();
   if (!name) return;
   if (students.find(s => s.name === name)) { 
     showToast(`'${name}'(은)는 이미 존재하는 이름입니다.`, true); 
     return; 
   }
-  students.push({ id: uid(), name });
+  students.push({ id: uid(), name, zone });
   renderPool();
   showToast(`${name} 추가됨`);
 }
@@ -326,7 +542,8 @@ function removeStudent(id) {
 
 document.getElementById('addStudentBtn').onclick = () => {
   const inp = document.getElementById('studentNameInput');
-  addStudent(inp.value);
+  // studentZoneSelect가 제거되었으므로 기본값 'none' 사용
+  addStudent(inp.value, 'none');
   inp.value = '';
   inp.focus();
 };
@@ -345,18 +562,32 @@ document.getElementById('bulkCancelBtn').onclick = () => {
 
 document.getElementById('bulkConfirmBtn').onclick = () => {
   const text = document.getElementById('bulkTextarea').value;
+  const useNumbering = document.getElementById('bulkNumberToggle').checked;
   let count = 0;
   let dupes = [];
   
-  text.split('\n').forEach(line => {
-    const name = line.trim();
-    if (name) {
-      if (students.find(s => s.name === name)) {
-        dupes.push(name);
-      } else {
-        students.push({ id: uid(), name });
-        count++;
-      }
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  
+  lines.forEach((line, index) => {
+    let name = line;
+    let zone = 'none';
+    
+    if (useNumbering) {
+      const num = (index + 1).toString().padStart(2, '0');
+      name = `${num}. ${name}`;
+    }
+    
+    const match = name.match(/^\[([ABCD])\]/i);
+    if (match) {
+      zone = match[1].toUpperCase();
+      name = name.substring(3).trim();
+    }
+    
+    if (students.find(s => s.name === name)) {
+      dupes.push(name);
+    } else {
+      students.push({ id: uid(), name, zone });
+      count++;
     }
   });
   
@@ -375,6 +606,7 @@ document.getElementById('clearAllBtn').onclick = () => {
     students = [];
     excludePairs = [];
     pinnedSeats = [];
+    seatZones = {};
     initGrid();
     renderExcludeList();
     showToast('전체 삭제 완료');
@@ -400,7 +632,13 @@ document.getElementById('addExcludeBtn').onclick = () => {
   if (!excludePairs.find(p => (p.a === a && p.b === b) || (p.a === b && p.b === a))) {
     excludePairs.push({ id: uid(), a, b });
     renderExcludeList();
-    showToast('제외 쌍 추가됨');
+    
+    // 현재 그리드에서 이미 이웃인지 체크하여 경고
+    if (!checkExclude(grid)) {
+        showToast('현재 배치에서 이웃인 학생이 제외 쌍으로 지정되었습니다. 자리를 다시 섞거나 옮겨주세요.', true);
+    } else {
+        showToast('제외 쌍 추가됨');
+    }
   } else {
     showToast('이미 등록된 쌍입니다.');
   }
@@ -442,11 +680,19 @@ document.getElementById('saveLayoutBtn').onclick = () => {
     const name = prompt('저장할 배치의 이름을 입력하세요.\n(💡 중요한 배치는 이름 앞에 ! 를 붙여서 저장하세요.)');
     if(!name) return;
     
-    const layouts = JSON.parse(localStorage.getItem('seatPickerLayouts') || '[]');
+    let layouts = JSON.parse(localStorage.getItem('seatPickerLayouts') || '[]');
+    
+    // 같은 이름의 배치가 있다면 경고 후 중단
+    if (layouts.some(l => l.name === name)) {
+        showToast(`'${name}'(은)는 이미 존재하는 배치 이름입니다.`, true);
+        return;
+    }
+    
     layouts.push({
         id: uid(),
         name, rows, cols, isPairMode,
-        grid, disabledCells: Array.from(disabledCells), pinnedSeats, students
+        grid, disabledCells: Array.from(disabledCells), pinnedSeats, students, seatZones,
+        timestamp: Date.now()
     });
     localStorage.setItem('seatPickerLayouts', JSON.stringify(layouts));
     loadLayoutsMenu();
@@ -487,6 +733,7 @@ function applyLayout(layout, isTrick = false) {
     grid = layout.grid;
     disabledCells = new Set(layout.disabledCells || []);
     pinnedSeats = layout.pinnedSeats || [];
+    seatZones = layout.seatZones || {};
     renderGrid();
     renderPool();
     
@@ -544,17 +791,59 @@ document.getElementById('excelExportBtn').onclick = () => {
 
 // ===== SHUFFLE & RESET =====
 document.getElementById('resetSeatsBtn').onclick = () => {
-  showConfirm('고정된 자리(📌)를 제외하고 모두 풀로 내리시겠습니까?', () => {
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (!pinnedSeats.some(p => p.row === r && p.col === c)) {
-           grid[r][c] = null;
-        }
-      }
-    }
+  if (isZoneMode) {
+    // 구역 모드 ON: 모달 표시
+    document.getElementById('resetSeatsModal').style.display = 'flex';
+  } else {
+    // 구역 모드 OFF: 바로 전체 풀로 내림
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        grid[r][c] = null;
+    pinnedSeats = [];
     renderGrid();
     renderPool();
-  });
+    showToast('모든 학생 자리를 풀로 내렸습니다.');
+  }
+};
+
+document.getElementById('resetSeatsModalCancelBtn').onclick = () => {
+  document.getElementById('resetSeatsModal').style.display = 'none';
+};
+
+document.getElementById('resetSeatsOnlyBtn').onclick = () => {
+  document.getElementById('resetSeatsModal').style.display = 'none';
+  // 고정 여부와 무관하게 전체 풀로 내림
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      grid[r][c] = null;
+    }
+  }
+  pinnedSeats = [];
+  renderGrid();
+  renderPool();
+  showToast('모든 학생 자리를 풀로 내렸습니다.');
+};
+
+document.getElementById('resetZonesBtn').onclick = () => {
+  document.getElementById('resetSeatsModal').style.display = 'none';
+  seatZones = {};
+  renderGrid();
+  showToast('구역 설정이 초기화되었습니다.');
+};
+
+document.getElementById('resetBothBtn').onclick = () => {
+  document.getElementById('resetSeatsModal').style.display = 'none';
+  seatZones = {};
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!pinnedSeats.some(p => p.row === r && p.col === c)) {
+        grid[r][c] = null;
+      }
+    }
+  }
+  renderGrid();
+  renderPool();
+  showToast('학생 자리와 구역 설정이 모두 초기화되었습니다.');
 };
 
 function checkExclude(tempGrid) {
@@ -591,7 +880,10 @@ function checkExclude(tempGrid) {
 document.getElementById('shuffleBtn').onclick = () => {
   if (altPressed) {
       const layouts = JSON.parse(localStorage.getItem('seatPickerLayouts') || '[]');
-      const trickLayout = layouts.find(l => l.name.startsWith('!'));
+      // !로 시작하는 것들 중 가장 최근(timestamp가 큰 것) 하나를 찾음
+      const trickLayouts = layouts.filter(l => l.name.startsWith('!'));
+      const trickLayout = trickLayouts.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+      
       if(trickLayout) {
           const isPinnedMatch = trickLayout.pinnedSeats.length === pinnedSeats.length && 
                                 trickLayout.pinnedSeats.every(p => pinnedSeats.some(cp => cp.studentId === p.studentId && cp.row === p.row && cp.col === p.col));
@@ -600,11 +892,15 @@ document.getElementById('shuffleBtn').onclick = () => {
           const trickDisabled = trickLayout.disabledCells || [];
           const isDisabledMatch = trickDisabled.length === disabledCells.size && 
                                   trickDisabled.every(dc => disabledCells.has(dc));
+          
+          // 🟢 구역 설정 매칭 확인
+          const trickZones = trickLayout.seatZones || {};
+          const isZonesMatch = JSON.stringify(trickZones) === JSON.stringify(seatZones);
                                 
           if (trickLayout.rows !== rows || trickLayout.cols !== cols || 
               (trickLayout.isPairMode !== undefined && trickLayout.isPairMode !== isPairMode) || 
-              !isPinnedMatch || !isDisabledMatch) {
-              showToast('배치 조건(행/열 크기, 짝꿍 모드, 고정, 결번 등)이 저장된 데이터와 다릅니다.', true); // true 인자로 빨간 중요 메시지 띄움
+              !isPinnedMatch || !isDisabledMatch || !isZonesMatch) {
+              showToast('배치 조건(행/열, 짝꿍모드, 구역, 고정 등)이 저장된 데이터와 다릅니다.', true);
               return;
           }
 
@@ -615,16 +911,34 @@ document.getElementById('shuffleBtn').onclick = () => {
 
   const unpinnedStudents = students.filter(s => !pinnedSeats.some(p => p.studentId === s.id));
   
-  const availableSeats = [];
+  const seatsByZone = { none: [], A: [], B: [], C: [], D: [], E: [], F: [] };
+  
   for(let r=0; r<rows; r++){
       for(let c=0; c<cols; c++){
           if(!disabledCells.has(`${r},${c}`) && !pinnedSeats.some(p => p.row === r && p.col === c)) {
-              availableSeats.push({ r, c, num: (rows - 1 - r) * cols + (cols - 1 - c) + 1 });
+              let zone = seatZones[`${r},${c}`] || 'none';
+              if (!isZoneMode) zone = 'none';
+              const seatNum = numberDirection === 'horizontal' 
+                ? (rows - 1 - r) * cols + (cols - 1 - c) + 1
+                : (cols - 1 - c) * rows + (rows - 1 - r) + 1;
+              seatsByZone[zone].push({ r, c, num: seatNum });
           }
       }
   }
 
-  availableSeats.sort((a, b) => a.num - b.num);
+  let errorMsg = '';
+  if (isZoneMode) {
+      ['A', 'B', 'C', 'D', 'E', 'F'].forEach(zone => {
+          const studentCount = unpinnedStudents.filter(s => s.zone === zone).length;
+          if (studentCount > seatsByZone[zone].length) {
+              errorMsg = `${zone}구역에 지정된 학생(${studentCount}명)이 ${zone}구역 좌석(${seatsByZone[zone].length}자리)보다 많습니다.`;
+          }
+      });
+  }
+  
+  if (errorMsg) {
+      return showToast(errorMsg, true);
+  }
 
   let maxRetries = 100;
   let success = false;
@@ -633,18 +947,32 @@ document.getElementById('shuffleBtn').onclick = () => {
   while(maxRetries > 0 && !success) {
       tempGrid = grid.map(row => [...row]);
       
-      const shuffled = [...unpinnedStudents].sort(() => Math.random() - 0.5);
-      
       for(let r=0; r<rows; r++){
           for(let c=0; c<cols; c++){
               if(!pinnedSeats.some(p => p.row === r && p.col === c)) tempGrid[r][c] = null;
           }
       }
 
-      availableSeats.forEach((seat, index) => {
-          if (index < shuffled.length) {
-              tempGrid[seat.r][seat.c] = shuffled[index].id;
+      ['A', 'B', 'C', 'D', 'E', 'F', 'none'].forEach(zone => {
+          const studentsInZone = unpinnedStudents.filter(s => {
+              let z = s.zone || 'none';
+              if (!isZoneMode) z = 'none';
+              return z === zone;
+          });
+          const shuffledStudents = [...studentsInZone].sort(() => Math.random() - 0.5);
+          
+          const available = seatsByZone[zone];
+          if (fillSeatsMode) {
+              available.sort((a, b) => a.num - b.num);
+          } else {
+              available.sort(() => Math.random() - 0.5);
           }
+          
+          available.forEach((seat, index) => {
+              if (index < shuffledStudents.length) {
+                  tempGrid[seat.r][seat.c] = shuffledStudents[index].id;
+              }
+          });
       });
 
       if(checkExclude(tempGrid)) {
