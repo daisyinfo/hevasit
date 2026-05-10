@@ -1016,11 +1016,28 @@ document.getElementById('shuffleBtn').onclick = () => {
           // 🟢 구역 설정 매칭 확인
           const trickZones = trickLayout.seatZones || {};
           const isZonesMatch = JSON.stringify(trickZones) === JSON.stringify(seatZones);
-                                
-          if (trickLayout.rows !== rows || trickLayout.cols !== cols || 
-              (trickLayout.isPairMode !== undefined && trickLayout.isPairMode !== isPairMode) || 
-              (trickLayout.isPrefMode !== undefined && trickLayout.isPrefMode !== isPrefMode) || 
-              !isPinnedMatch || !isDisabledMatch || !isZonesMatch) {
+
+          // 🟢 선호좌석(pref) 매칭 확인: 저장된 학생과 현재 학생의 pref 값 비교
+          const trickStudents = trickLayout.students || [];
+          const isPrefMatch = trickStudents.length === students.length &&
+                              trickStudents.every(ts => {
+                                  const cs = students.find(s => s.id === ts.id);
+                                  if (!cs) return false;
+                                  const tPref = ts.pref || 'none';
+                                  const cPref = cs.pref || 'none';
+                                  return tPref === cPref;
+                              });
+
+          const mismatches = [];
+          if (trickLayout.rows !== rows || trickLayout.cols !== cols) mismatches.push('행/열 크기');
+          if (trickLayout.isPairMode !== undefined && trickLayout.isPairMode !== isPairMode) mismatches.push('짝꿍 모드');
+          if (trickLayout.isPrefMode !== undefined && trickLayout.isPrefMode !== isPrefMode) mismatches.push('선호좌석 모드');
+          if (!isPinnedMatch) mismatches.push('고정 자리');
+          if (!isDisabledMatch) mismatches.push('결번 설정');
+          if (!isZonesMatch) mismatches.push('구역 설정');
+          if (!isPrefMatch) mismatches.push('학생별 선호좌석');
+
+          if (mismatches.length > 0) {
               showToast('배치 조건(행/열, 짝꿍모드, 구역, 선호좌석, 고정 등)이 저장된 데이터와 다릅니다.', true);
               return;
           }

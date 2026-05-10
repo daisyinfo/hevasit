@@ -329,7 +329,7 @@ body.is-student-view .pref-student:hover {
 .pop-in { animation: popIn 0.3s ease-out forwards; }
 
 /* ===== TOAST ===== */
-#toastContainer { width: auto; max-width: 400px; }
+#toastContainer { width: auto; max-width: 340px; }
 .toast {
   position: relative;
   background: rgba(99, 102, 241, 0.9); color: #fff;
@@ -338,19 +338,30 @@ body.is-student-view .pref-student:hover {
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   pointer-events: auto; display: flex;
   align-items: center; justify-content: flex-end; text-align: right;
-  width: fit-content; max-width: 90vw; word-break: keep-all;
+  width: fit-content; max-width: 340px;
+  word-break: keep-all; overflow-wrap: anywhere;
   border: 1px solid rgba(255, 255, 255, 0.1);
   opacity: 0; transform: translateX(30px);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  line-height: 1.5;
 }
 .toast.show { opacity: 1; transform: translateX(0); }
 .toast.important { 
-  background: rgba(239, 68, 68, 0.9); box-shadow: 0 12px 32px rgba(239, 68, 68, 0.3); 
-  padding-right: 44px; text-align: right;
+  background: rgba(220, 38, 38, 0.95);
+  box-shadow: 0 12px 32px rgba(220, 38, 38, 0.35);
+  border-color: rgba(255,255,255,0.15);
+  padding: 14px 44px 14px 18px;
+  text-align: left;
+  align-items: flex-start;
+  max-width: 340px;
+}
+.toast.important span {
+  flex: 1;
+  line-height: 1.5;
 }
 .toast-close {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  cursor: pointer; width: 22px; height: 22px; display: flex; align-items: center;
+  position: absolute; right: 10px; top: 10px; transform: none;
+  cursor: pointer; width: 22px; height: 22px; flex-shrink: 0; display: flex; align-items: center;
   justify-content: center; background: rgba(0,0,0,0.2); border-radius: 50%;
   font-size: 12px; line-height: 1; transition: background 0.2s;
 }

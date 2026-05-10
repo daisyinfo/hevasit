@@ -22,7 +22,8 @@
   <div id="app" class="w-full h-full flex flex-col overflow-hidden" style="background:var(--bg);">
     <header class="w-full px-6 py-4 flex items-center justify-between flex-shrink-0 z-50"
       style="background: var(--surface-solid); border-bottom: 1px solid var(--border);">
-      <a href="index.html" class="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity" style="text-decoration: none;">
+      <a href="index.html" class="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+        style="text-decoration: none;">
         <div class="p-1.5 bg-white/5 rounded-xl border border-white/10 shadow-inner">
           <img src="logo.png" alt="Hevasit Logo" class="w-9 h-9 rounded-lg object-cover">
         </div>
@@ -30,7 +31,8 @@
       </a>
 
       <div class="flex items-center gap-2">
-        <button id="themeToggleBtn" class="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white" title="라이트 모드 켜기">
+        <button id="themeToggleBtn"
+          class="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white" title="라이트 모드 켜기">
           <i data-lucide="sun" class="w-5 h-5 hidden" id="iconSun"></i>
           <i data-lucide="moon" class="w-5 h-5" id="iconMoon"></i>
         </button>
@@ -38,13 +40,13 @@
           <select id="loadLayoutSelect"
             class="bg-transparent border-none focus:ring-0 text-sm font-medium pr-8 cursor-pointer"
             style="min-width:180px; background:none !important; border:none !important;">
-          <option value="">저장된 배치 불러오기</option>
-        </select>
-        <div class="w-px h-6 bg-white/10 mx-1"></div>
-        <button id="saveLayoutBtn"
-          class="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white" title="현재 배치 저장">
-          <i data-lucide="save" class="w-5 h-5"></i>
-        </button>
+            <option value="">저장된 배치 불러오기</option>
+          </select>
+          <div class="w-px h-6 bg-white/10 mx-1"></div>
+          <button id="saveLayoutBtn"
+            class="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white" title="현재 배치 저장">
+            <i data-lucide="save" class="w-5 h-5"></i>
+          </button>
           <button id="deleteLayoutBtn"
             class="p-2 hover:bg-red-500/20 rounded-lg transition-colors text-white/40 hover:text-red-400"
             title="선택된 배치 삭제">
