@@ -12,9 +12,17 @@ let isPairMode = true;
 let isZoneMode = false;
 let zoneCount = 3;
 let seatZones = {}; // "r,c" -> zone
-let currentBrush = 'A';
+let currentBrush = 'disabled';
 let fillSeatsMode = true;
 let numberDirection = 'horizontal';
+let isStudentView = false;
+let isPrefMode = false;
+let poolSearchTerm = '';
+
+document.getElementById('poolSearchInput').addEventListener('input', (e) => {
+  poolSearchTerm = e.target.value.toLowerCase().trim();
+  renderPool();
+});
 
 window.addEventListener('keydown', e => { if (e.key === 'Alt') altPressed = true; });
 window.addEventListener('keyup', e => { if (e.key === 'Alt') altPressed = false; });
@@ -81,9 +89,27 @@ document.getElementById('fillSeatsToggle').addEventListener('change', (e) => {
   fillSeatsMode = e.target.checked;
 });
 
-document.getElementById('numberDirectionSelect').addEventListener('change', (e) => {
-  numberDirection = e.target.value;
+document.getElementById('numberDirectionToggle').addEventListener('change', (e) => {
+  numberDirection = e.target.checked ? 'vertical' : 'horizontal';
   renderGrid();
+});
+
+document.getElementById('studentViewToggle').addEventListener('change', (e) => {
+  isStudentView = e.target.checked;
+  document.body.classList.toggle('is-student-view', isStudentView);
+  const wrapper = document.querySelector('.seat-grid-wrapper');
+  if (isStudentView) wrapper.classList.add('student-view');
+  else wrapper.classList.remove('student-view');
+  renderGrid();
+});
+
+document.getElementById('prefModeToggle').addEventListener('change', (e) => {
+  isPrefMode = e.target.checked;
+  if (!isPrefMode) {
+    students.forEach(s => s.pref = 'none');
+  }
+  renderGrid();
+  renderPool();
 });
 
 // ===== HELPERS =====
@@ -171,8 +197,8 @@ function renderGrid() {
   
   for (let r = 0; r < rows; r++) {
     const rowDiv = document.createElement('div');
-    rowDiv.className = isPairMode ? 'flex justify-center gap-4 w-full flex-1' : 'flex justify-center gap-8 w-full flex-1';
-    rowDiv.style.maxHeight = '140px'; 
+    rowDiv.className = 'seat-row ' + (isPairMode ? 'flex justify-center gap-3 w-full flex-1' : 'flex justify-center gap-6 w-full flex-1');
+    rowDiv.style.maxHeight = '120px'; 
 
     for (let c = 0; c < cols; c++) {
       const cell = document.createElement('div');
@@ -181,7 +207,16 @@ function renderGrid() {
       cell.dataset.col = c;
 
       if (isPairMode && (cols - c) % 2 === 0 && c !== 0) {
-        cell.style.marginLeft = 'clamp(16px, 3vw, 40px)'; 
+        if (isStudentView) {
+          cell.style.marginRight = 'clamp(10px, 2vw, 28px)'; /* 간격 축소 */
+          cell.style.marginLeft = '0';
+        } else {
+          cell.style.marginLeft = 'clamp(10px, 2vw, 28px)'; /* 간격 축소 */
+          cell.style.marginRight = '0';
+        }
+      } else {
+        cell.style.marginLeft = '0';
+        cell.style.marginRight = '0';
       }
 
       const seatNum = numberDirection === 'horizontal' 
@@ -272,11 +307,39 @@ function makeCard(student, inGrid = false, r = null, c = null, poolZone = null) 
   card.dataset.id = student.id;
   card.textContent = student.name;
 
+  if (isPrefMode || (student.pref && student.pref !== 'none')) {
+    const prefBtn = document.createElement('div');
+    prefBtn.className = `pref-student ${student.pref || ''}`;
+    
+    const updatePrefIcon = (p) => {
+      if (p === 'front') prefBtn.innerHTML = '<i data-lucide="chevron-down"></i>';
+      else if (p === 'back') prefBtn.innerHTML = '<i data-lucide="chevron-up"></i>';
+      else prefBtn.innerHTML = '<i data-lucide="circle"></i>';
+    };
+    
+    updatePrefIcon(student.pref);
+    prefBtn.title = '좌석 선호도 (앞/뒤/없음)';
+    
+    prefBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (!student.pref || student.pref === 'none') student.pref = 'front';
+      else if (student.pref === 'front') student.pref = 'back';
+      else student.pref = 'none';
+      
+      prefBtn.className = `pref-student ${student.pref}`;
+      updatePrefIcon(student.pref);
+      if (window.lucide) lucide.createIcons(); // 클릭 시에는 필요
+      showToast(`${student.name}: ${student.pref === 'front' ? '앞자리' : student.pref === 'back' ? '뒷자리' : '선호 없음'}`);
+    };
+    card.appendChild(prefBtn);
+  }
+
   if (isZoneMode && student.zone && student.zone !== 'none') {
     card.dataset.zone = student.zone;
     
     // 각 구역 폴에 있을 때는 뱃지를 표시하지 않고, 그리드에 있거나 기본 풀(none)에 있을 때만 표시
-    const shouldShowBadge = inGrid || poolZone === 'none';
+    // 🎨 수정: 그리드 내에서는 뱃지를 표시하지 않음 (색상만으로 충분)
+    const shouldShowBadge = !inGrid && poolZone === 'none';
     
     if (shouldShowBadge) {
       const badge = document.createElement('div');
@@ -298,7 +361,7 @@ function makeCard(student, inGrid = false, r = null, c = null, poolZone = null) 
   
   if (inGrid) {
     actionBtn.className = 'return-student';
-    actionBtn.innerHTML = '↺';
+    actionBtn.innerHTML = '<i data-lucide="minus"></i>';
     actionBtn.title = '미배치 풀로 내리기';
     actionBtn.onclick = (e) => {
       e.stopPropagation();
@@ -371,13 +434,15 @@ function renderPool() {
   }
   
   const unassigned = students.filter(s => !isAssigned(s.id));
-  unassigned.forEach(s => {
+  const filtered = unassigned.filter(s => s.name.toLowerCase().includes(poolSearchTerm));
+  
+  filtered.forEach(s => {
     let targetZone = s.zone || 'none';
     if (!isZoneMode) targetZone = 'none';
 
     const wrap = document.createElement('div');
-    wrap.style.width = '69px'; 
-    wrap.style.height = '28px';
+    wrap.style.width = 'calc((100% - 12px) / 4)'; 
+    wrap.style.height = '36px';
     const card = makeCard(s, false, null, null, targetZone);
     card.classList.add('pool-card');
     wrap.appendChild(card);
@@ -391,12 +456,13 @@ function renderPool() {
     }
   });
   
-  document.getElementById('poolCount').textContent = unassigned.length;
+  document.getElementById('poolCount').textContent = filtered.length;
   for (let key in counts) {
       const countEl = document.getElementById(`count-${key}`);
       if (countEl) countEl.textContent = counts[key];
   }
   updateDropdowns();
+  if (window.lucide) lucide.createIcons();
 }
 
 function isAssigned(id) {
@@ -568,25 +634,41 @@ document.getElementById('bulkConfirmBtn').onclick = () => {
   
   const lines = text.split('\n').map(l => l.trim()).filter(l => l);
   
+  const lastStudentNum = students.reduce((max, s) => {
+    const match = s.name.match(/^(\d+)\./);
+    if (match) return Math.max(max, parseInt(match[1]));
+    return max;
+  }, 0);
+
   lines.forEach((line, index) => {
     let name = line;
     let zone = 'none';
+    let pref = 'none';
     
-    if (useNumbering) {
-      const num = (index + 1).toString().padStart(2, '0');
-      name = `${num}. ${name}`;
+    // [A], [B], [C], [D], [E], [F] 구역 또는 [F](Front), [B](Back) 선호도 파싱
+    let tagMatch;
+    while (tagMatch = name.match(/^\[([A-F])\]/i)) {
+      const tag = tagMatch[1].toUpperCase();
+      zone = tag;
+      name = name.substring(tagMatch[0].length).trim();
     }
     
-    const match = name.match(/^\[([ABCD])\]/i);
-    if (match) {
-      zone = match[1].toUpperCase();
-      name = name.substring(3).trim();
+    if (tagMatch = name.match(/^\[(FRONT|BACK|F|B)\]/i)) {
+      const p = tagMatch[1].toUpperCase();
+      if (p === 'FRONT' || p === 'F') pref = 'front';
+      if (p === 'BACK' || p === 'B') pref = 'back';
+      name = name.substring(tagMatch[0].length).trim();
+    }
+    
+    if (useNumbering) {
+      const num = (lastStudentNum + index + 1).toString().padStart(2, '0');
+      name = `${num}. ${name}`;
     }
     
     if (students.find(s => s.name === name)) {
       dupes.push(name);
     } else {
-      students.push({ id: uid(), name, zone });
+      students.push({ id: uid(), name, zone, pref });
       count++;
     }
   });
@@ -607,6 +689,8 @@ document.getElementById('clearAllBtn').onclick = () => {
     excludePairs = [];
     pinnedSeats = [];
     seatZones = {};
+    poolSearchTerm = '';
+    document.getElementById('poolSearchInput').value = '';
     initGrid();
     renderExcludeList();
     showToast('전체 삭제 완료');
@@ -690,7 +774,7 @@ document.getElementById('saveLayoutBtn').onclick = () => {
     
     layouts.push({
         id: uid(),
-        name, rows, cols, isPairMode,
+        name, rows, cols, isPairMode, isPrefMode,
         grid, disabledCells: Array.from(disabledCells), pinnedSeats, students, seatZones,
         timestamp: Date.now()
     });
@@ -729,6 +813,11 @@ function applyLayout(layout, isTrick = false) {
         document.getElementById('pairModeToggle').checked = isPairMode;
     }
 
+    if (layout.isPrefMode !== undefined) {
+        isPrefMode = layout.isPrefMode;
+        document.getElementById('prefModeToggle').checked = isPrefMode;
+    }
+
     students = layout.students || [];
     grid = layout.grid;
     disabledCells = new Set(layout.disabledCells || []);
@@ -745,48 +834,79 @@ function applyLayout(layout, isTrick = false) {
 }
 
 // ===== EXPORT TO EXCEL =====
-// 🛠️ 수정 1: 결번/빈자리를 텍스트 없이 빈칸("")으로 저장
 document.getElementById('excelExportBtn').onclick = () => {
-    let csvContent = "\uFEFF"; 
-    
+    // 1. 교사 시점 데이터 생성 (Teacher View)
+    let teacherData = [];
     for (let r = 0; r < rows; r++) {
         let rowData = [];
         for (let c = 0; c < cols; c++) {
             if (disabledCells.has(`${r},${c}`)) {
-                rowData.push(""); // 결번 -> 빈칸 처리
+                rowData.push(""); // 결번
             } else {
                 const sid = grid[r][c];
                 if (sid) {
                     const s = students.find(x => x.id === sid);
                     rowData.push(s ? s.name : "");
                 } else {
-                    rowData.push(""); // 빈자리 -> 빈칸 처리
+                    rowData.push("");
                 }
             }
         }
-        csvContent += rowData.join(",") + "\n";
+        teacherData.push(rowData);
     }
     
-    let blackboardRow = new Array(cols).fill("");
-    let centerIdx = Math.floor(cols / 2) - (cols % 2 === 0 ? 1 : 0);
-    if (centerIdx < 0) centerIdx = 0;
-    blackboardRow[centerIdx] = "교탁"; 
-    csvContent += "\n" + blackboardRow.join(",") + "\n";
+    // 교탁 추가 (교사 시점 - 아래)
+    teacherData.push([]);
+    let teacherBlackboardRow = new Array(cols).fill("");
+    let centerIdx = Math.floor(cols / 2);
+    teacherBlackboardRow[centerIdx] = "교탁";
+    teacherData.push(teacherBlackboardRow);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
+    // 2. 학생 시점 데이터 생성 (Student View)
+    // 180도 회전: 행 역순, 열 역순
+    let studentData = [];
     
+    // 교탁 추가 (학생 시점 - 위)
+    let studentBlackboardRow = new Array(cols).fill("");
+    studentBlackboardRow[centerIdx] = "교탁";
+    studentData.push(studentBlackboardRow);
+    studentData.push([]);
+
+    for (let r = rows - 1; r >= 0; r--) {
+        let rowData = [];
+        for (let c = cols - 1; c >= 0; c--) {
+            if (disabledCells.has(`${r},${c}`)) {
+                rowData.push("");
+            } else {
+                const sid = grid[r][c];
+                if (sid) {
+                    const s = students.find(x => x.id === sid);
+                    rowData.push(s ? s.name : "");
+                } else {
+                    rowData.push("");
+                }
+            }
+        }
+        studentData.push(rowData);
+    }
+
+    // XLSX 워크북 생성
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(teacherData);
+    const ws2 = XLSX.utils.aoa_to_sheet(studentData);
+    
+    XLSX.utils.book_append_sheet(wb, ws1, "교사 시점");
+    XLSX.utils.book_append_sheet(wb, ws2, "학생 시점");
+    
+    // 파일명 설정
     const date = new Date();
     const dateStr = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}`;
-    link.setAttribute("download", `자리배치표_${dateStr}.csv`);
+    const filename = `자리배치표_${dateStr}.xlsx`;
     
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 다운로드
+    XLSX.writeFile(wb, filename);
     
-    showToast('엑셀(CSV) 파일로 다운로드되었습니다.');
+    showToast('엑셀(.xlsx) 파일로 다운로드되었습니다.');
 };
 
 // ===== SHUFFLE & RESET =====
@@ -899,8 +1019,9 @@ document.getElementById('shuffleBtn').onclick = () => {
                                 
           if (trickLayout.rows !== rows || trickLayout.cols !== cols || 
               (trickLayout.isPairMode !== undefined && trickLayout.isPairMode !== isPairMode) || 
+              (trickLayout.isPrefMode !== undefined && trickLayout.isPrefMode !== isPrefMode) || 
               !isPinnedMatch || !isDisabledMatch || !isZonesMatch) {
-              showToast('배치 조건(행/열, 짝꿍모드, 구역, 고정 등)이 저장된 데이터와 다릅니다.', true);
+              showToast('배치 조건(행/열, 짝꿍모드, 구역, 선호좌석, 고정 등)이 저장된 데이터와 다릅니다.', true);
               return;
           }
 
@@ -959,16 +1080,43 @@ document.getElementById('shuffleBtn').onclick = () => {
               if (!isZoneMode) z = 'none';
               return z === zone;
           });
-          const shuffledStudents = [...studentsInZone].sort(() => Math.random() - 0.5);
+
+          // 🌟 선호도 반영 정렬 (확률적)
+          const shuffledStudents = [...studentsInZone].sort((a, b) => {
+              if (!isPrefMode) return Math.random() - 0.5;
+              
+              const getScore = (s) => {
+                  const base = s.pref === 'front' ? 0 : s.pref === 'back' ? 2 : 1;
+                  return base + Math.random(); // 0~1(front), 1~2(none), 2~3(back)
+              };
+              return getScore(a) - getScore(b);
+          });
           
-          const available = seatsByZone[zone];
+          const available = [...seatsByZone[zone]];
+          
+          let selectedSeats = [];
           if (fillSeatsMode) {
+              // 1. 번호 채워 앉기: 가용 좌석을 번호순으로 정렬 후 학생 수만큼만 선택
               available.sort((a, b) => a.num - b.num);
+              selectedSeats = available.slice(0, studentsInZone.length);
           } else {
-              available.sort(() => Math.random() - 0.5);
+              // 2. 전체 가용 좌석 사용
+              selectedSeats = available;
+          }
+
+          // 3. 선택된 좌석들 내에서 배치 순서 결정 (선호도 또는 랜덤)
+          if (isPrefMode) {
+              // 선호도 모드: 행(r) 기준 정렬하여 shuffledStudents(선호도순)와 매칭
+              selectedSeats.sort((a, b) => {
+                  if (a.r !== b.r) return b.r - a.r; // r이 클수록 앞자리
+                  return Math.random() - 0.5;
+              });
+          } else {
+              // 일반 모드: 랜덤 섞기
+              selectedSeats.sort(() => Math.random() - 0.5);
           }
           
-          available.forEach((seat, index) => {
+          selectedSeats.forEach((seat, index) => {
               if (index < shuffledStudents.length) {
                   tempGrid[seat.r][seat.c] = shuffledStudents[index].id;
               }
@@ -994,4 +1142,49 @@ document.getElementById('shuffleBtn').onclick = () => {
 // 초기 실행
 initGrid();
 loadLayoutsMenu();
-if (window.lucide) lucide.createIcons();
+
+// Theme Toggle Logic
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const iconSun = document.getElementById('iconSun');
+const iconMoon = document.getElementById('iconMoon');
+
+let currentTheme = localStorage.getItem('theme') || 'dark';
+
+function applyTheme(theme) {
+  const iconSun = document.getElementById('iconSun');
+  const iconMoon = document.getElementById('iconMoon');
+  
+  if (theme === 'light') {
+    document.body.classList.add('light-mode');
+    if (iconSun) iconSun.classList.remove('hidden');
+    if (iconMoon) iconMoon.classList.add('hidden');
+    if (themeToggleBtn) themeToggleBtn.title = '다크 모드 켜기';
+  } else {
+    document.body.classList.remove('light-mode');
+    if (iconSun) iconSun.classList.add('hidden');
+    if (iconMoon) iconMoon.classList.remove('hidden');
+    if (themeToggleBtn) themeToggleBtn.title = '라이트 모드 켜기';
+  }
+}
+
+applyTheme(currentTheme);
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', () => {
+    // 애니메이션을 위해 잠시 클래스 추가
+    document.documentElement.classList.add('theme-transitioning');
+    setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning');
+    }, 600); // 0.6초 뒤에 제거 (CSS transition 시간과 동일하게)
+
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', currentTheme);
+    applyTheme(currentTheme);
+  });
+}
+
+if (window.lucide) {
+    lucide.createIcons();
+    // Re-apply theme after icons are created to ensure correct hidden state on the new SVG elements
+    applyTheme(currentTheme);
+}
