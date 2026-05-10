@@ -39,8 +39,15 @@ body.light-mode .grid-cell.disabled:hover { background-color: #cbd5e1; }
 body.light-mode .student-card { background: #ffffff; border-color: rgba(0,0,0,0.15); color: #1e293b; box-shadow: 0 4px 10px rgba(0,0,0,0.04); font-weight: 700; }
 body.light-mode .student-card:hover { border-color: var(--primary); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.15); }
 body.light-mode .pin-student { background: #ffffff; color: #1e293b; border-color: rgba(0,0,0,0.2); }
+body.light-mode .pin-student.is-pinned { background: #ffffff; color: var(--primary); border: 2px solid var(--primary); box-shadow: 0 2px 8px rgba(99,102,241,0.25); }
+
 body.light-mode .pref-student { background: #ffffff; color: #1e293b; border-color: rgba(0,0,0,0.2); }
 body.light-mode .pref-student.none { background: #f8fafc; border-color: rgba(0,0,0,0.15); color: rgba(30,41,59,0.5); }
+body.light-mode .pref-student.front { background: #10b981; color: #ffffff; border-color: #10b981; box-shadow: 0 2px 8px rgba(16,185,129,0.25); }
+body.light-mode .pref-student.back { background: #f59e0b; color: #ffffff; border-color: #f59e0b; box-shadow: 0 2px 8px rgba(245,158,11,0.25); }
+
+body.light-mode .return-student { background: #64748b; color: #ffffff; border-color: #64748b; }
+body.light-mode .delete-student { background: #ef4444; color: #ffffff; border-color: #ef4444; }
 
 body.light-mode .seat-number { color: rgba(30,41,59,0.4); font-weight: 600; }
 
