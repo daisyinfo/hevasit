@@ -751,3 +751,56 @@ html.theme-transitioning *:after {
               stroke 0.6s cubic-bezier(0.4, 0, 0.2, 1) !important;
   transition-delay: 0s !important;
 }
+
+/* ===== EXCLUDE LEVEL SLIDER ===== */
+.level-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px !important;
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 3px !important;
+  outline: none;
+  cursor: pointer;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important;
+}
+
+.level-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.level-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #818cf8;
+  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.5), inset 0 2px 4px rgba(255,255,255,0.4);
+}
+
+.level-slider:active::-webkit-slider-thumb {
+  transform: scale(1.05);
+  background: white;
+}
+
+.level-badge {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 32px;
+  text-align: center;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.level-badge.level-1 { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); } /* 1단계: 초록 (기본) */
+.level-badge.level-2 { background: rgba(234, 179, 8, 0.15); color: #eab308; border-color: rgba(234, 179, 8, 0.3); } /* 2단계: 노랑 */
+.level-badge.level-3 { background: rgba(249, 115, 22, 0.15); color: #fb923c; border-color: rgba(249, 115, 22, 0.3); } /* 3단계: 주황 */
+.level-badge.level-4 { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); } /* 4단계: 빨강 (심각) */

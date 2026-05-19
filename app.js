@@ -714,7 +714,7 @@ document.getElementById('addExcludeBtn').onclick = () => {
   if (!a || !b || a === b) return showToast('올바른 학생 쌍을 선택하세요.');
   
   if (!excludePairs.find(p => (p.a === a && p.b === b) || (p.a === b && p.b === a))) {
-    excludePairs.push({ id: uid(), a, b });
+    excludePairs.push({ id: uid(), a, b, level: 1 });
     renderExcludeList();
     
     // 현재 그리드에서 이미 이웃인지 체크하여 경고
@@ -728,6 +728,13 @@ document.getElementById('addExcludeBtn').onclick = () => {
   }
 };
 
+function getLevelBadgeClass(level) {
+  if (level === 1) return 'level-1';
+  if (level === 2) return 'level-2';
+  if (level === 3) return 'level-3';
+  return 'level-4';
+}
+
 function renderExcludeList() {
   const list = document.getElementById('excludeList');
   list.innerHTML = '';
@@ -736,15 +743,41 @@ function renderExcludeList() {
     const sb = students.find(s => s.id === p.b);
     if (!sa || !sb) return;
     
+    if (!p.level) p.level = 1; // 호환성
+    
     const div = document.createElement('div');
-    div.className = 'flex items-center justify-between bg-[rgba(255,255,255,0.03)] px-3 py-2 rounded-lg border border-[rgba(255,255,255,0.05)] text-xs';
+    div.className = 'flex items-center justify-between bg-[rgba(255,255,255,0.03)] px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.05)] mb-1 gap-2';
     div.innerHTML = `
-      <span style="color:var(--text);">${sa.name} ↔ ${sb.name}</span>
-      <button class="text-red-400 hover:text-red-300 transition-colors" onclick="removeExclude('${p.id}')">✕</button>
+      <span style="color:var(--text); font-weight:500; font-size:11px; flex-shrink:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${sa.name} ↔ ${sb.name}">
+        ${sa.name} <span style="color:rgba(255,255,255,0.3); margin:0 3px;">↔</span> ${sb.name}
+      </span>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="level-badge ${getLevelBadgeClass(p.level)}" id="lvlBadge-${p.id}">${p.level}단계</div>
+        <input type="range" min="1" max="4" step="1" value="${p.level}" class="level-slider w-[60px]" 
+               oninput="
+                 const b = document.getElementById('lvlBadge-${p.id}');
+                 b.innerText = this.value + '단계';
+                 b.className = 'level-badge level-' + this.value;
+               "
+               onchange="setExcludeLevel('${p.id}', parseInt(this.value))" title="드래그하여 강도 조절">
+        <button class="text-red-400 hover:text-red-300 transition-colors ml-0.5 p-1 flex-shrink-0" onclick="removeExclude('${p.id}')">
+          <i data-lucide="x" style="width:13px;height:13px;"></i>
+        </button>
+      </div>
     `;
     list.appendChild(div);
   });
+  if(window.lucide) lucide.createIcons();
 }
+
+window.setExcludeLevel = (id, level) => {
+    const pair = excludePairs.find(p => p.id === id);
+    if (pair) {
+        pair.level = level;
+        renderExcludeList();
+    }
+};
+
 window.removeExclude = (id) => {
   excludePairs = excludePairs.filter(p => p.id !== id);
   renderExcludeList();
@@ -996,6 +1029,41 @@ function checkExclude(tempGrid) {
     return true;
 }
 
+function evaluateGridScore(tempGrid) {
+    if (excludePairs.length === 0) return { isPerfect: true, score: Infinity };
+    
+    let isPerfect = true;
+    let totalScore = 0;
+    
+    for (let p of excludePairs) {
+        let r1 = -1, c1 = -1, r2 = -1, c2 = -1;
+        for (let r=0; r<rows; r++) {
+            for (let c=0; c<cols; c++) {
+                if (tempGrid[r][c] === p.a) { r1 = r; c1 = c; }
+                if (tempGrid[r][c] === p.b) { r2 = r; c2 = c; }
+            }
+        }
+        if (r1 !== -1 && r2 !== -1) {
+            const dist = Math.max(Math.abs(r1 - r2), Math.abs(c1 - c2));
+            const target = p.level === 1 ? 2 : (p.level === 2 ? 3 : (p.level === 3 ? 4 : Infinity));
+            
+            if (p.level !== 4 && dist < target) isPerfect = false;
+            
+            if (p.level === 4) {
+                totalScore += dist * 10;
+            } else {
+                totalScore += Math.min(dist, target);
+            }
+        }
+    }
+    
+    if (excludePairs.some(p => p.level === 4)) {
+        isPerfect = false;
+    }
+    
+    return { isPerfect, score: totalScore };
+}
+
 // 🛠️ 수정 2: 주작 모드 시 '결번(disabledCells)' 일치 여부도 검사하여 불일치 시 빨간 경고창
 document.getElementById('shuffleBtn').onclick = () => {
   if (altPressed) {
@@ -1078,12 +1146,13 @@ document.getElementById('shuffleBtn').onclick = () => {
       return showToast(errorMsg, true);
   }
 
-  let maxRetries = 100;
+  let maxRetries = 300;
   let success = false;
-  let tempGrid = [];
+  let bestGrid = null;
+  let bestScore = -1;
 
-  while(maxRetries > 0 && !success) {
-      tempGrid = grid.map(row => [...row]);
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let tempGrid = grid.map(row => [...row]);
       
       for(let r=0; r<rows; r++){
           for(let c=0; c<cols; c++){
@@ -1141,18 +1210,30 @@ document.getElementById('shuffleBtn').onclick = () => {
       });
 
       if(checkExclude(tempGrid)) {
-          success = true;
-          grid = tempGrid;
+          const evalResult = evaluateGridScore(tempGrid);
+          if (evalResult.score > bestScore) {
+              bestScore = evalResult.score;
+              bestGrid = tempGrid.map(row => [...row]);
+          }
+          if (evalResult.isPerfect) {
+              break;
+          }
       }
-      maxRetries--;
+  }
+
+  if(bestGrid) {
+      success = true;
+      grid = bestGrid;
   }
 
   if(!success) {
-      showToast('제외 조건을 만족하는 배치를 찾지 못했습니다. 다시 시도하세요.', true);
+      showToast('1단계 이웃 제외 조건(기본)을 만족하는 배치를 찾지 못했습니다. 결번이나 고정 자리를 확인하세요.', true);
   } else {
       renderGrid();
       renderPool();
-      if(!altPressed) showToast('자리를 섞었습니다.');
+      if(!altPressed) {
+          showToast('자리를 섞었습니다.');
+      }
   }
 };
 
