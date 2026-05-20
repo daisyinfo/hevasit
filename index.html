@@ -128,6 +128,17 @@
 
             <div class="flex items-center justify-between px-1">
               <div class="flex flex-col">
+                <span class="text-xs font-bold text-white/80">학생 번호 표시</span>
+                <span class="text-[10px] text-white/30">배치도에 학생 번호를 함께 표시합니다</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="showNumberToggle" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="flex items-center justify-between px-1">
+              <div class="flex flex-col">
                 <span class="text-xs font-bold text-white/80">번호 채워 앉기</span>
                 <span class="text-[10px] text-white/30">좌석 번호 순서대로 학생을 배치합니다</span>
               </div>
@@ -177,7 +188,7 @@
               <span class="text-[10px] text-white/30 px-1 mb-3 block">클릭 시 해당 구역으로 설정됩니다</span>
               <div class="flex gap-2 px-1 justify-start">
                 <div class="brush-btn active brush-none" data-brush="none" title="기본 자리">기본</div>
-                <div class="brush-btn brush-disabled" data-brush="disabled" title="결번 처리">❌</div>
+                <div class="brush-btn brush-disabled" data-brush="disabled" title="자리 잠금">❌</div>
                 <div id="brushBtn-A" class="brush-btn brush-A" data-brush="A" title="A구역">A</div>
                 <div id="brushBtn-B" class="brush-btn brush-B" data-brush="B" title="B구역">B</div>
                 <div id="brushBtn-C" class="brush-btn brush-C" data-brush="C" title="C구역">C</div>
@@ -254,11 +265,11 @@
           <div id="poolAccordion" class="flex flex-col gap-2 pb-1">
             <div class="pool-section" data-zone="none">
               <div class="pool-header flex justify-between items-center">
-                <span>기본 풀 <span class="count" id="count-none">0</span></span>
+                <span>명렬표 <span class="count" id="count-none">0</span></span>
                 <i data-lucide="chevron-up" class="chevron transition-transform" style="width:14px;height:14px;"></i>
               </div>
-              <div id="studentPool-none" class="pool-area flex flex-wrap gap-1 content-start p-2 rounded-lg"
-                style="background:rgba(255,255,255,0.02);border:1.5px dashed rgba(255,255,255,0.06);min-height:60px;max-height:160px;overflow-y:auto; padding-top: 10px; gap: 8px 4px;">
+              <div id="studentPool-none" class="pool-area roster-grid p-2 rounded-lg"
+                style="background:rgba(255,255,255,0.02);border:1.5px dashed rgba(255,255,255,0.06);min-height:60px;max-height:300px;overflow-y:auto;">
               </div>
             </div>
             <div id="poolSection-A" class="pool-section zone-section hidden" data-zone="A">
@@ -408,13 +419,6 @@
       <textarea id="bulkTextarea" rows="8" class="w-full mb-3" placeholder="홍길동&#10;김철수&#10;이영희"
         style="padding:14px !important; height:auto !important;"></textarea>
 
-      <div class="flex items-center justify-between mb-4 px-1">
-        <span class="text-xs text-white/70 font-medium">이름 앞에 번호 자동 추가</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="bulkNumberToggle" checked>
-          <span class="slider"></span>
-        </label>
-      </div>
       <div class="flex gap-2 justify-end">
         <button id="bulkCancelBtn" class="btn-secondary">취소</button>
         <button id="bulkConfirmBtn" class="btn-primary">추가</button>

@@ -659,7 +659,126 @@ details > summary::-webkit-details-marker { display: none; }
 .brush-btn.active.brush-E { background: rgba(139, 92, 246, 0.4); border-color: #8b5cf6; }
 .brush-btn.active.brush-F { background: rgba(236, 72, 153, 0.4); border-color: #ec4899; }
 
-/* ===== POOL ACCORDION ===== */
+/* ===== POOL ACCORDION & ROSTER ===== */
+.roster-grid {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 8px 4px;
+}
+.roster-slot {
+  position: relative;
+  width: 100%;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  padding-left: 28px;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+.roster-slot::before {
+  content: attr(data-num);
+  position: absolute;
+  left: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 700;
+}
+.roster-slot.missing {
+  background: rgba(255, 255, 255, 0.01);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+.roster-slot.missing::before {
+  color: rgba(255, 255, 255, 0.2);
+  text-decoration: line-through;
+}
+.roster-slot.missing:hover {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+.roster-slot:not(.missing):hover {
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+.roster-slot .pool-card {
+  position: absolute;
+  top: 2px; left: 30px; right: 2px; bottom: 2px;
+  margin: 0;
+  width: calc(100% - 32px); height: calc(100% - 4px);
+  z-index: 2;
+}
+.roster-slot.drag-over-slot {
+  background: rgba(99,102,241,0.2) !important;
+  border-color: #6366f1 !important;
+  border-style: solid;
+}
+.roster-slot.drag-over-long {
+  animation: swap-pulse 0.4s ease-out forwards;
+  background: rgba(139, 92, 246, 0.2) !important;
+  border-color: #8b5cf6 !important;
+  border-style: solid;
+}
+.roster-slot.drag-over-long::before {
+  content: "⇄" !important;
+  color: #a78bfa !important;
+  font-size: 18px !important;
+  animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+@keyframes swap-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); box-shadow: 0 0 0 8px rgba(139, 92, 246, 0); }
+}
+@keyframes pop-in {
+  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.add-roster-btn {
+  width: 100%;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.add-roster-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.add-btn-small {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1.5px dashed rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.add-btn-small:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+
 .pool-section {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);

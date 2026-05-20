@@ -111,6 +111,28 @@ body.light-mode .move-all-to-base:hover { background: #f1f5f9; }
 body.light-mode .toast { background: rgba(255, 255, 255, 0.98); color: #1e293b; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 12px 32px rgba(0,0,0,0.1); font-weight: 600; }
 body.light-mode .toast.important { background: rgba(239, 68, 68, 0.98); color: #ffffff; border: none; }
 
+/* ===== ROSTER ===== */
+body.light-mode .roster-slot {
+  background: #f8fafc;
+  border-color: rgba(0,0,0,0.15);
+}
+body.light-mode .roster-slot::before {
+  color: rgba(30,41,59,0.5);
+}
+body.light-mode .roster-slot:not(.missing):hover {
+  background: #f1f5f9;
+}
+body.light-mode .roster-slot.missing {
+  background: #f1f5f9;
+  border-color: rgba(0,0,0,0.05);
+}
+body.light-mode .roster-slot.missing::before {
+  color: rgba(30,41,59,0.3);
+}
+body.light-mode .roster-slot.missing:hover {
+  background: #e2e8f0;
+}
+
 /* Inline styles overrides */
 body.light-mode [style*="color:rgba(255,255,255"] {
   color: var(--text-dim) !important;
@@ -150,4 +172,34 @@ body.light-mode .border-white\/10 {
 }
 body.light-mode .bg-white\/10 {
   background-color: rgba(0,0,0,0.1) !important;
+}
+
+body.light-mode .roster-slot.drag-over-long {
+  background: #ede9fe !important;
+  border-color: #8b5cf6 !important;
+}
+body.light-mode .roster-slot.drag-over-long::before {
+  color: #8b5cf6 !important;
+}
+
+body.light-mode .add-roster-btn {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: rgba(30, 41, 59, 0.6);
+}
+body.light-mode .add-roster-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.25);
+  color: rgba(30, 41, 59, 0.9);
+}
+
+body.light-mode .add-btn-small {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.15);
+  color: rgba(30, 41, 59, 0.4);
+}
+body.light-mode .add-btn-small:hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.3);
+  color: rgba(30, 41, 59, 0.9);
 }

@@ -17,7 +17,18 @@ let fillSeatsMode = true;
 let numberDirection = 'horizontal';
 let isStudentView = false;
 let isPrefMode = false;
+let showNumberInGrid = true;
 let poolSearchTerm = '';
+let missingRosterNumbers = new Set();
+let manualMaxRosterNum = 0;
+
+function getNextRosterNum() {
+  let num = 1;
+  while(students.find(s => s.rosterNum === num) || missingRosterNumbers.has(num)) {
+    num++;
+  }
+  return num;
+}
 
 document.getElementById('poolSearchInput').addEventListener('input', (e) => {
   poolSearchTerm = e.target.value.toLowerCase().trim();
@@ -100,6 +111,11 @@ document.getElementById('studentViewToggle').addEventListener('change', (e) => {
   const wrapper = document.querySelector('.seat-grid-wrapper');
   if (isStudentView) wrapper.classList.add('student-view');
   else wrapper.classList.remove('student-view');
+  renderGrid();
+});
+
+document.getElementById('showNumberToggle').addEventListener('change', (e) => {
+  showNumberInGrid = e.target.checked;
   renderGrid();
 });
 
@@ -305,7 +321,9 @@ function makeCard(student, inGrid = false, r = null, c = null, poolZone = null) 
   card.className = 'student-card pop-in';
   card.draggable = true;
   card.dataset.id = student.id;
-  card.textContent = student.name;
+  card.textContent = (inGrid && showNumberInGrid && student.rosterNum) 
+                     ? `${String(student.rosterNum).padStart(2, '0')}. ${student.name}` 
+                     : student.name;
 
   if (isPrefMode || (student.pref && student.pref !== 'none')) {
     const prefBtn = document.createElement('div');
@@ -418,7 +436,6 @@ function makeCard(student, inGrid = false, r = null, c = null, poolZone = null) 
 // ===== POOL =====
 function renderPool() {
   const pools = {
-      'none': document.getElementById('studentPool-none'),
       'A': document.getElementById('studentPool-A'),
       'B': document.getElementById('studentPool-B'),
       'C': document.getElementById('studentPool-C'),
@@ -436,9 +453,157 @@ function renderPool() {
   const unassigned = students.filter(s => !isAssigned(s.id));
   const filtered = unassigned.filter(s => s.name.toLowerCase().includes(poolSearchTerm));
   
+  // Roster (none zone) rendering
+  const rosterGrid = document.getElementById('studentPool-none');
+  rosterGrid.innerHTML = '';
+  
+  let maxRosterNum = Math.max(0, manualMaxRosterNum, ...students.map(s => s.rosterNum || 0), ...Array.from(missingRosterNumbers));
+  
+  let totalSlots = maxRosterNum;
+  if (totalSlots < 5) totalSlots = 5;
+  
+  const totalItems = totalSlots + 1;
+  const rowsCount = Math.ceil(totalItems / 2);
+  
+  rosterGrid.style.gridTemplateRows = `repeat(${rowsCount}, 38px)`;
+  
+  for (let num = 1; num <= totalSlots; num++) {
+      const slot = document.createElement('div');
+      slot.className = 'roster-slot';
+      slot.dataset.num = String(num).padStart(2, '0');
+      
+      if (missingRosterNumbers.has(num)) {
+          slot.classList.add('missing');
+      }
+      
+      const s = filtered.find(x => x.rosterNum === num && (!isZoneMode || !x.zone || x.zone === 'none'));
+      if (s) {
+          const card = makeCard(s, false, null, null, 'none');
+          card.classList.add('pool-card');
+          slot.appendChild(card);
+          counts['none']++;
+      }
+      
+      slot.addEventListener('click', (e) => {
+          if (e.target.closest('.student-card')) return;
+          toggleMissingRoster(num);
+      });
+      
+      slot.addEventListener('dragover', e => {
+          if (dragData && dragData.from === 'grid') return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (!slot.classList.contains('drag-over-slot')) {
+              slot.classList.add('drag-over-slot');
+              // Start long hover timer for swapping
+              slot.swapTimer = setTimeout(() => {
+                  slot.classList.add('drag-over-long');
+              }, 500);
+          }
+      });
+      slot.addEventListener('dragleave', (e) => {
+          if (dragData && dragData.from === 'grid') return;
+          e.stopPropagation();
+          slot.classList.remove('drag-over-slot');
+          slot.classList.remove('drag-over-long');
+          clearTimeout(slot.swapTimer);
+      });
+      slot.addEventListener('drop', e => {
+          if (dragData && dragData.from === 'grid') return;
+          e.preventDefault();
+          e.stopPropagation();
+          const isLong = slot.classList.contains('drag-over-long');
+          slot.classList.remove('drag-over-slot');
+          slot.classList.remove('drag-over-long');
+          clearTimeout(slot.swapTimer);
+          
+          if (!dragData) return;
+          
+          if (missingRosterNumbers.has(num)) {
+              showToast('결번 처리된 번호입니다.');
+              return;
+          }
+          
+          const sid = dragData.studentId;
+          const draggedStudent = students.find(x => x.id === sid);
+          if (!draggedStudent) return;
+          
+          if (dragData.from === 'grid') {
+              // Return from grid
+              for (let r = 0; r < rows; r++)
+                  for (let c = 0; c < cols; c++)
+                      if (grid[r][c] === sid) grid[r][c] = null;
+              pinnedSeats = pinnedSeats.filter(p => p.studentId !== sid);
+              if (isZoneMode) draggedStudent.zone = 'none';
+              
+              if (isLong && !s) {
+                 const numA = String(draggedStudent.rosterNum || '').padStart(2, '0');
+                 const numB = String(num).padStart(2, '0');
+                 draggedStudent.rosterNum = num;
+                 const msg = `<div style="font-weight:700; margin-bottom:4px;">번호 변경</div><div style="font-size:12px; opacity:0.9; line-height:1.5;">- ${draggedStudent.name} (${numA} ➔ ${numB})</div>`;
+                 showToast(msg, true);
+              } else if (isLong && s) {
+                 const temp = draggedStudent.rosterNum;
+                 draggedStudent.rosterNum = s.rosterNum;
+                 s.rosterNum = temp;
+                 const numA = String(temp).padStart(2, '0');
+                 const numB = String(draggedStudent.rosterNum).padStart(2, '0');
+                 const msg = `<div style="font-weight:700; margin-bottom:4px;">번호 변경</div><div style="font-size:12px; opacity:0.9; line-height:1.5;">- ${draggedStudent.name} (${numA} ➔ ${numB})<br>- ${s.name} (${numB} ➔ ${numA})</div>`;
+                 showToast(msg, true);
+              }
+              
+              renderGrid();
+          } else {
+              // Drag within pool/roster
+              if (isZoneMode && draggedStudent.zone !== 'none') {
+                  draggedStudent.zone = 'none';
+              }
+              
+              if (isLong) {
+                  // Swap or move
+                  if (s) {
+                      const temp = draggedStudent.rosterNum;
+                      draggedStudent.rosterNum = s.rosterNum;
+                      s.rosterNum = temp;
+                      const numA = String(temp).padStart(2, '0');
+                      const numB = String(draggedStudent.rosterNum).padStart(2, '0');
+                      const msg = `<div style="font-weight:700; margin-bottom:4px;">번호 변경</div><div style="font-size:12px; opacity:0.9; line-height:1.5;">- ${draggedStudent.name} (${numA} ➔ ${numB})<br>- ${s.name} (${numB} ➔ ${numA})</div>`;
+                      showToast(msg, true);
+                  } else {
+                      const numA = String(draggedStudent.rosterNum || '').padStart(2, '0');
+                      const numB = String(num).padStart(2, '0');
+                      draggedStudent.rosterNum = num;
+                      const msg = `<div style="font-weight:700; margin-bottom:4px;">번호 변경</div><div style="font-size:12px; opacity:0.9; line-height:1.5;">- ${draggedStudent.name} (${numA} ➔ ${numB})</div>`;
+                      showToast(msg, true);
+                  }
+              }
+          }
+          renderPool();
+      });
+      
+      rosterGrid.appendChild(slot);
+  }
+  
+  const oldAddWrap = document.getElementById('addRosterSlotWrap');
+  if (oldAddWrap) oldAddWrap.remove();
+
+  const addBtn = document.createElement('div');
+  addBtn.className = 'add-btn-small pop-in';
+  addBtn.style.width = '100%';
+  addBtn.style.height = '100%';
+  addBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
+  addBtn.title = '빈 번호칸 추가';
+  addBtn.onclick = () => {
+      manualMaxRosterNum = Math.max(maxRosterNum, totalSlots) + 1;
+      renderPool();
+  };
+  rosterGrid.appendChild(addBtn);
+  
+  // Render other zones
   filtered.forEach(s => {
     let targetZone = s.zone || 'none';
     if (!isZoneMode) targetZone = 'none';
+    if (targetZone === 'none') return; // already handled
 
     const wrap = document.createElement('div');
     wrap.style.width = 'calc((100% - 12px) / 4)'; 
@@ -450,9 +615,6 @@ function renderPool() {
     if (pools[targetZone]) {
         pools[targetZone].appendChild(wrap);
         counts[targetZone]++;
-    } else {
-        if(pools['none']) pools['none'].appendChild(wrap);
-        counts['none']++;
     }
   });
   
@@ -463,6 +625,25 @@ function renderPool() {
   }
   updateDropdowns();
   if (window.lucide) lucide.createIcons();
+}
+
+function toggleMissingRoster(num) {
+    if (missingRosterNumbers.has(num)) {
+        missingRosterNumbers.delete(num);
+        students.forEach(s => {
+            if (s.rosterNum > num) s.rosterNum--;
+        });
+    } else {
+        // Check if there is a student at this number
+        const sAtNum = students.find(s => s.rosterNum === num);
+        missingRosterNumbers.add(num);
+        if (sAtNum) {
+            students.forEach(s => {
+                if (s.rosterNum >= num) s.rosterNum++;
+            });
+        }
+    }
+    renderPool();
 }
 
 function isAssigned(id) {
@@ -593,7 +774,7 @@ function addStudent(name, zone = 'none') {
     showToast(`'${name}'(은)는 이미 존재하는 이름입니다.`, true); 
     return; 
   }
-  students.push({ id: uid(), name, zone });
+  students.push({ id: uid(), name, zone, rosterNum: getNextRosterNum() });
   renderPool();
   showToast(`${name} 추가됨`);
 }
@@ -628,7 +809,6 @@ document.getElementById('bulkCancelBtn').onclick = () => {
 
 document.getElementById('bulkConfirmBtn').onclick = () => {
   const text = document.getElementById('bulkTextarea').value;
-  const useNumbering = document.getElementById('bulkNumberToggle').checked;
   let count = 0;
   let dupes = [];
   
@@ -660,15 +840,12 @@ document.getElementById('bulkConfirmBtn').onclick = () => {
       name = name.substring(tagMatch[0].length).trim();
     }
     
-    if (useNumbering) {
-      const num = (lastStudentNum + index + 1).toString().padStart(2, '0');
-      name = `${num}. ${name}`;
-    }
+    // 사용자가 이름 앞에 수동으로 번호를 붙였다면, 제거하는 로직이 필요할 수 있지만 여기서는 단순히 prefix를 안 붙이도록 합니다.
     
     if (students.find(s => s.name === name)) {
       dupes.push(name);
     } else {
-      students.push({ id: uid(), name, zone, pref });
+      students.push({ id: uid(), name, zone, pref, rosterNum: getNextRosterNum() });
       count++;
     }
   });
@@ -689,6 +866,8 @@ document.getElementById('clearAllBtn').onclick = () => {
     excludePairs = [];
     pinnedSeats = [];
     seatZones = {};
+    missingRosterNumbers.clear();
+    manualMaxRosterNum = 0;
     poolSearchTerm = '';
     document.getElementById('poolSearchInput').value = '';
     initGrid();
